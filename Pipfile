@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "*"
+jsonify = "*"
+google-cloud-bigquery = "*"
+flasgger = "*"
+
+[dev-packages]
+google-cloud-storage = "*"
+autopep8 = "*"
+
+[requires]
+python_version = "3.7"

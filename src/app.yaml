@@ -1,0 +1,3 @@
+runtime: python37
+env_variables:
+  DB_NAME: "torqata-coding-challenge"
