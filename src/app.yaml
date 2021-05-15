@@ -1,6 +1,5 @@
 runtime: python37
 env_variables:
-  DB_NAME: "torqata-coding-challenge"
   PASSWORD: "PASSWORD"
   PUBLIC_IP_ADDRESS: "PUBLIC-IP"
   DBNAME: "DBNAME"
