@@ -3,11 +3,60 @@ import flask
 from flask import request, jsonify
 from google.cloud import bigquery
 from flasgger import Swagger
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
+import uuid
 
 app = flask.Flask(__name__)
 swagger = Swagger(app)
 app.config["DEBUG"] = True
-DB_NAME = os.environ.get("DB_NAME")
+
+# Google Cloud SQL (change this accordingly)
+PASSWORD = os.getenv('PASSWORD')
+PUBLIC_IP_ADDRESS = os.getenv('PUBLIC_IP_ADDRESS')
+DBNAME = os.getenv('DBNAME')
+PROJECT_ID = os.getenv('PROJECT_ID')
+INSTANCE_NAME = os.getenv('INSTANCE_NAME')
+CONNECTION_NAME = os.getenv('CONNECTION_NAME')
+
+DATABASE_URI = f"postgresql://postgres:{PASSWORD}@{PUBLIC_IP_ADDRESS}:5432/{DBNAME}"
+
+if os.getenv('IS_LOCAL_DEV') is not "True":
+    DATABASE_URI += f"?host=/cloudsql/{CONNECTION_NAME}"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
+
+db = SQLAlchemy(app)
+ma = Marshmallow(app)
+
+
+class Netflix(db.Model):
+    show_id = db.Column(db.String(), primary_key=True)
+    show_type = db.Column(db.String(), unique=True, nullable=False)
+    title = db.Column(db.String(), unique=True, nullable=False)
+    director = db.Column(db.String(), unique=True, nullable=False)
+    cast = db.Column(db.String(), unique=True, nullable=False)
+    country = db.Column(db.String(), unique=True, nullable=False)
+    date_added = db.Column(db.String(), unique=True, nullable=False)
+    release_year = db.Column(db.Integer, unique=True, nullable=False)
+    rating = db.Column(db.String(), unique=True, nullable=False)
+    duration = db.Column(db.String(), unique=True, nullable=False)
+    listed_in = db.Column(db.String(), unique=True, nullable=False)
+    description = db.Column(db.String(), unique=True, nullable=False)
+
+
+class NetflixSchema(ma.Schema):
+    class Meta:
+        fields = ("show_id", "show_type", "title", "director", "cast", "country",
+                  "date_added", "release_year", "rating", "duration", "listed_in", "description")
+        model = Netflix
+
+
+netflix_schema = NetflixSchema()
+neflixs_schema = NetflixSchema(many=True)
+
 
 @app.route('/', methods=['GET'])
 def home():
@@ -16,81 +65,71 @@ def home():
               <p>Using titles from Netflix</p>
               <p><a href="/apidocs">API Documentation</a></p>'''
 
-def paginate_response(query, limit, offset, job_config=None):
-    client = bigquery.Client()
-
-    # might not be the best way to do things but lets me get away with what I wanted for now
-    data_query = f"""
-        SELECT * FROM ({query}) LIMIT {limit} OFFSET {offset}
-    """
-
-    if job_config is not None:
-        data_query_job = client.query(data_query, job_config=job_config)
-    else:
-        data_query_job = client.query(data_query)
-
-    data_results = data_query_job.result()
-
-    return_list = []
-
-    count_query = f"""
-        SELECT count(*) FROM ({query})
-    """
-    count_query_job = client.query(count_query)
-    count_results = count_query_job.result()
-
-    total_record_count = 0
-
-    for row in count_results:
-        for items in row.items():
-            total_record_count  = int(items[1])
-
-    for row in data_results:
-        data_item = {}
-
-        for items in row.items():
-            data_item[str(items[0])] = str(items[1])
-        
-        return_list.append(data_item)
-    
-    return {
-        "count": total_record_count,
-        "limit": limit,
-        "start": offset,
-        "items": return_list
-    }
-
 # TODO: Change data structure around where it matches this: {data item}.{source}
+
+
 @app.route('/api/v1/titles/netflix/all', methods=['GET'])
 def titles_all():
-    """Returns a paginated list of titles
-    Looked around at how other APIs are made and this seems to be a somewhat standard approach
+    """Returns a paginated list of all titles
+    Allows you to retreive a paginated list of all titles in the database. Also allows you to tweak the pagnation properties
     ---
     parameters:
-      - name: limit
-        in: query
+      - name: page
+        in: path
         type: integer
         required: false
-        default: 100
-      - name: offset
-        in: query
+        default: 1
+      - name: max
+        in: path
         type: integer
         required: false
-        default: 0
+        default: 20
+    responses:
+      200:
+        description: A list of colors (may be filtered by palette)
+        schema:
+          $ref: '#/definitions/TitlesArray'
+    """
+
+    query_parameters = request.args
+
+    page = int(query_parameters.get('page', 1))
+    maximum = int(query_parameters.get('max', 20))
+
+    titles = Netflix.query.paginate(page, maximum, error_out=False).items
+
+    return jsonify(neflixs_schema.dump(titles))
+
+
+@app.route('/api/v1/titles/netflix/search', methods=['GET'])
+def titles_search():
+    """Returns titles that match the search params
+    Allows you to search across any one column.
+    ---
+    parameters:
+      - name: field
+        in: path
+        type: string
+        required: true
+      - name: term
+        in: path
+        type: string
+        required: true
+      - name: page
+        in: path
+        type: integer
+        required: false
+        default: 1
+      - name: max
+        in: path
+        type: integer
+        required: false
+        default: 20
     definitions:
-      PaginatedResponse:
-        type: object
-        properties:
-          count:
-            type: integer
-          limit:
-            type: integer
-          start:
-            type: integer
-          items:
-            type: array
-            items:
-              $ref: '#/definitions/Title'
+      TitlesArray:
+        type: array
+        items:
+          $ref: '#/definitions/Title'
       Title:
         type: object
         properties:
@@ -111,138 +150,155 @@ def titles_all():
           rating:
             type: string
           release_year:
-            type: string
+            type: integer
           show_id:
+            type: string
+          show_type:
             type: string
           title:
             type: string
-          type:
-            type: string
+
     responses:
       200:
-        description: A paginated object containing items from the title 
+        description: A list of titles filtered on the field and term
         schema:
-          $ref: '#/definitions/PaginatedResponse'
+          $ref: '#/definitions/TitlesArray'
     """
 
     query_parameters = request.args
 
-    limit = 100
+    page = int(query_parameters.get('page', 1))
+    maximum = int(query_parameters.get('max', 20))
 
-    if "limit" in query_parameters:
-        limit = int(query_parameters["limit"])
+    try:
+        field = query_parameters.get('field')
+        term = query_parameters.get('term')
+    except:
+        abort(404)  # probably should have more descriptive errors here
 
-    offset = 0
+    # probably not best to use these fields but it works and keeps me from needing another query
+    available_fields = set(netflix_schema.Meta.fields)
 
-    if "offset" in query_parameters:
-        offset = int(query_parameters['offset'])
+    if field not in available_fields:
+        abort(404)
 
-    titles = paginate_response("SELECT * FROM `torqata-coding-challenge.netflix.titles`", limit, offset)
+    titles = Netflix.query.filter(getattr(Netflix, field).like(term)).all()
 
-    return jsonify(titles)
-
-@app.route('/api/v1/titles/netflix/search', methods=['GET'])
-def titles_search():
-    query_parameters = request.args
-
-    # this one will let users add their own bit to the query so lets use bigquery paramaterized queries to protect against injection
-
-    limit = 100
-    offset = 0
-
-    client = bigquery.Client()
-
-    field = "rating"
-    
-    field_query = f"""
-        SELECT column_name
-        FROM {DB_NAME}.netflix.INFORMATION_SCHEMA.COLUMNS
-        WHERE table_name = 'titles'
-    """
-    field_query_job = client.query(field_query)
-    field_results = field_query_job.result()
-
-    column_set = set()
-
-    for row in field_results:
-        for items in row.items():
-            column_set.add(items[1])
-
-    if field not in column_set:
-        raise("Column not supported")
-
-    #check that field to see if it's valid before adding and executing it. 
-    query = f"""SELECT * FROM `{DB_NAME}.netflix.titles` WHERE {field} LIKE @term"""
-
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("term", "STRING", "G")
-        ]
-    )
-
-    search_results = paginate_response(query, limit, offset, job_config=job_config)
-
-    return jsonify(search_results)
+    return jsonify(neflixs_schema.dump(titles))
 
 # TODO: Finish Documentation
+
+
 @app.route('/api/v1/titles/netflix/releaseYear/count', methods=['GET'])
 def title_year_count():
-    """Count of release years
-    Paginated list of titles.
+    """Returns the summary release titles by year
+    Ordered by release year.
     ---
-    parameters:
-      - name: limit
-        in: query
-        type: integer
-        required: false
-        default: 100
-      - name: offset
-        in: query
-        type: integer
-        required: false
-        default: 0
     definitions:
-      PaginatedResponse:
+      ReleaseYearCountArray:
+        type: array
+        items:
+          $ref: '#/definitions/ReleaseYearCountSummary'
+      ReleaseYearCountSummary:
         type: object
         properties:
-          count:
-            type: integer
-          limit:
-            type: integer
-          start:
-            type: integer
-          items:
-            type: array
-            items:
-              $ref: '#/definitions/YearReleaseSummary'
-      YearReleaseSummary:
-        type: object
-        properties:
-          released:
-            type: string
           release_year:
-            type: string
+            type: int
+          count:
+            type: int
     responses:
       200:
-        description: A paginated object containing items from the title 
+        description: A list of release years with a count of how many titles were released that year
         schema:
-          $ref: '#/definitions/YearReleaseSummary'
+          $ref: '#/definitions/ReleaseYearCountList'
     """
+
     query_parameters = request.args
 
-    limit = 200
+    result = db.engine.execute(
+        "SELECT release_year, count(*) AS released FROM netflix GROUP BY release_year ORDER BY release_year")
 
-    if "limit" in query_parameters:
-        limit = int(query_parameters["limit"])
+    release_year_count_list = [
+        {"release_year": row[0], "count": row[1]} for row in result]
 
-    offset = 0
+    return jsonify(release_year_count_list)
 
-    if "offset" in query_parameters:
-        offset = int(query_parameters['offset'])
 
-    years = paginate_response(f"SELECT release_year, count(*) AS released FROM `{DB_NAME}.netflix.titles` GROUP BY release_year ORDER BY release_year", limit, offset)
+@app.route('/api/v1/titles/netflix/', methods=['Post'])
+def add_title():
+    if not request.is_json:
+        return jsonify({"msg": "Missing JSON in request"}), 400
 
-    return jsonify(years)
+    title_to_add = request.get_json()
+    title = Netflix(
+        # items in the database don't currently use UUID but I wanted to make sure all new items did
+        show_id=uuid.uuid4(),
+        title=title_to_add['title'],
+        show_type=title_to_add['show_type'],
+        director=title_to_add['director'],
+        cast=title_to_add['cast'],
+        country=title_to_add['country'],
+        date_added=title_to_add['date_added'],
+        release_year=title_to_add['release_year'],
+        rating=title_to_add['rating'],
+        duration=title_to_add['duration'],
+        listed_in=title_to_add['listed_in'],
+        description=title_to_add['description']
+    )
+
+    db.session.add(title)
+    db.session.commit()
+
+    return netflix_schema.dump(title_to_add)
+
+
+@app.route('/api/v1/titles/netflix/<string:id>', methods=['GET'])
+def get_title(id):
+
+    return netflix_schema.dump(Netflix.query.filter_by(show_id=id).first())
+
+
+@app.route('/api/v1/titles/netflix/<string:id>', methods=['Post'])
+def update_title(id):
+
+    title_to_update = Netflix.query.filter_by(show_id=id).first()
+
+    if not request.is_json:
+        return jsonify({"msg": "Missing JSON in request"}), 400
+
+    update_info = request.get_json()
+
+    title_to_update.title = update_info['title'],
+    title_to_update.show_type = update_info['show_type'],
+    title_to_update.director = update_info['director'],
+    title_to_update.cast = update_info['cast'],
+    title_to_update.country = update_info['country'],
+    title_to_update.date_added = update_info['date_added'],
+    title_to_update.release_year = update_info['release_year'],
+    title_to_update.rating = update_info['rating'],
+    title_to_update.duration = update_info['duration'],
+    title_to_update.listed_in = update_info['listed_in'],
+    title_to_update.description = update_info['description']
+
+    db.session.commit()
+
+    return netflix_schema.dump(title_to_update)
+
+
+# {
+#     "title": "Test Title",
+#     "show_type": "Show Type",
+#     "director": "Director",
+#     "cast": "Cast",
+#     "country": "Test_Country",
+#     "date_added": "Some Weirdo Date",
+#     "release_year": 2021,
+#     "rating": "G",
+#     "duration": "32 seasons",
+#     "listed_in": "Test",
+#     "description": "Test"
+# }
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
