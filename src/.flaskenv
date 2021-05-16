@@ -1,0 +1,2 @@
+FLASK_APP=TitleSearch
+FLASK_ENV=development

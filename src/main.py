@@ -22,7 +22,7 @@ CONNECTION_NAME = os.getenv('CONNECTION_NAME')
 
 DATABASE_URI = f"postgresql://postgres:{PASSWORD}@{PUBLIC_IP_ADDRESS}:5432/{DBNAME}"
 
-if os.getenv('IS_LOCAL_DEV') is not "True":
+if os.getenv('FLASK_ENV') != "development":
     DATABASE_URI += f"?host=/cloudsql/{CONNECTION_NAME}"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
