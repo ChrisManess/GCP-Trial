@@ -1,10 +1,8 @@
-import os 
+import os
 from google.cloud import storage
 from google.cloud import bigquery
 
-# TODO: Need to formalize this a bit better by replacing strings with env vars 
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = './torqata-coding-challenge-29a80f9376fd.json'
+# TODO: Need to formalize this a bit better by replacing strings with env vars
 
 storage_client = storage.Client()
 
@@ -39,8 +37,8 @@ dataset.location = "US"
 # exists within the project.
 # dataset = client.create_dataset(dataset, timeout=30)  # Make an API request.
 
-#show_id,type,title,director,cast,country,date_added,release_year,rating,duration,listed_in,description
-#for a first pass we'rd not going to put everything in the proper data stores we just want to get everything on platform and working
+# show_id,type,title,director,cast,country,date_added,release_year,rating,duration,listed_in,description
+# for a first pass we'rd not going to put everything in the proper data stores we just want to get everything on platform and working
 
 # TODO(developer): Set table_id to the ID of the table to create.
 table_id = "torqata-coding-challenge.netflix.titles"
