@@ -2,6 +2,7 @@ import os
 from google.cloud import storage
 from google.cloud import bigquery
 
+# NOTICE: Was playing around with a concept here. It didn't pan out but I thought I'd leave the code in for now.
 # TODO: Need to formalize this a bit better by replacing strings with env vars
 
 storage_client = storage.Client()

@@ -14,8 +14,6 @@ def home():
               <p>Using titles from Netflix</p>
               <p><a href="/apidocs">API Documentation</a></p>'''
 
-# TODO: Change data structure around where it matches this: {data item}.{source}
-
 
 @app.route('/api/v1/titles/netflix/all', methods=['GET'])
 def titles_all():
@@ -219,8 +217,6 @@ def add_title():
 
     return netflix_schema.dump(title)
 
-# TODO: finish documentation here
-
 
 @app.route('/api/v1/titles/netflix/<string:id>', methods=['GET'])
 def get_title(id):
@@ -242,8 +238,6 @@ def get_title(id):
     """
 
     return netflix_schema.dump(Netflix.query.filter_by(show_id=id).first())
-
-# TODO: finish documentation here
 
 
 @app.route('/api/v1/titles/netflix/<string:id>', methods=['DELETE'])
@@ -322,7 +316,3 @@ def update_title(id):
     db.session.commit()
 
     return netflix_schema.dump(title_to_update)
-
-
-# if __name__ == "__main__":
-#     app.run(host="0.0.0.0", debug=True)
