@@ -2,6 +2,7 @@ import flask
 from flask import request, jsonify
 from flask import Flask
 import uuid
+from sqlalchemy import desc, asc
 
 from Init import app
 from Models import Netflix, NetflixSchema, netflix_schema, neflixs_schema, db, ma
@@ -18,7 +19,7 @@ def home():
 @app.route('/api/v1/titles/netflix/all', methods=['GET'])
 def titles_all():
     """Returns a paginated list of all titles
-    Allows you to retreive a paginated list of all titles in the database. Also allows you to tweak the pagnation properties
+    Allows you to retreive a paginated list of all titles in the database. Also allows you to tweak the pagnation properties. Ordered by Title.
     ---
     parameters:
       - name: page
@@ -31,6 +32,12 @@ def titles_all():
         type: integer
         required: false
         default: 20
+      - name: order
+        in: path
+        type: string
+        required: false
+        default: asc
+        description: Valid values: asc | desc
     responses:
       200:
         description: A list of colors (may be filtered by palette)
@@ -42,8 +49,15 @@ def titles_all():
 
     page = int(query_parameters.get('page', 1))
     maximum = int(query_parameters.get('max', 20))
+    sort_order = query_parameters.get('order', 'asc')
 
-    titles = Netflix.query.paginate(page, maximum, error_out=False).items
+    model_sort = asc(Netflix.title)
+
+    if sort_order == 'desc':
+        model_sort = desc(Netflix.title)
+
+    titles = Netflix.query.order_by(model_sort).paginate(
+        page, maximum, error_out=False).items
 
     return jsonify(neflixs_schema.dump(titles))
 
