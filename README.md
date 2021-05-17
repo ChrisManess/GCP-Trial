@@ -2,9 +2,10 @@
 
 ### Application Structure:
 
-- Main.py does the orchestration of the application.
-- Init.py does the largest part of the setup of the application, initializes settings and starts app.
+- Main.py does the orchestration of the application
+- Init.py does the largest part of the setup of the application, initializes settings and starts app
 - Models.py contains the information used to retreive the data from the database and serialize it through various points of the application
+- Routes.py comtains the routes for the application and all the code needed for them to do their functions
 
 ### Services Used:
 
@@ -12,7 +13,7 @@ CloudSQL, App Engine, Swagger(documentation), and Github
 
 ### Deploying this in your account:
 
-(this was somewhat rushed to follow at your own peril)
+(this was somewhat rushed so follow at your own peril)
 
 Create Project, instances, and database
 
