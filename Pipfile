@@ -11,6 +11,8 @@ flasgger = "*"
 flask-sqlalchemy = "*"
 psycopg2-binary = "*"
 flask-marshmallow = "*"
+python-dotenv = "*"
+marshmallow-sqlalchemy = "*"
 
 [dev-packages]
 google-cloud-storage = "*"
@@ -18,3 +20,6 @@ autopep8 = "*"
 
 [requires]
 python_version = "3.7"
+
+[scripts]
+startuplocal = "export IS_LOCAL_DEV=True & python src/main.py"
